@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MSC Tally</title>
+<style>
+  :root{
+    --bg: #0a0a0c;
+    --panel: #131316;
+    --panel-2: #1b1b1f;
+    --line: #2a2a2f;
+    --text: #e8e6e0;
+    --text-dim: #8a8a90;
+    --text-faint: #55555c;
+    --red-base: #c81e1e;
+    --red-glow: #ff3b3b;
+    --green-base: #16c45a;
+    --green-glow: #3dffa0;
+    --amber: #e0a527;
+    --mono: 'SF Mono', 'Roboto Mono', 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin:0; padding:0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    height: 100%;
+    overflow-x: hidden;
+  }
+
+  body{
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+  }
+
+  /* subtle texture */
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events:none;
+    z-index:0;
+  }
+
+  .app{
+    position:relative;
+    z-index:1;
+    display:flex;
+    flex-direction:column;
+    flex:1;
+    max-width: 980px;
+    margin: 0 auto;
+    width:100%;
+    padding: 18px 20px 28px;
+  }
+
+  /* ---------- HEADER ---------- */
+  header{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    padding-bottom:14px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 18px;
+  }
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  .brand .mark{
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    color: var(--text-faint);
+    border:1px solid var(--line);
+    padding: 3px 7px;
+    border-radius: 3px;
+  }
+  .brand h1{
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    margin:0;
+  }
+  .conn-state{
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .conn-dot{
+    width:6px; height:6px; border-radius:50%;
+    background: var(--text-faint);
+    flex-shrink:0;
+  }
+  .conn-dot.ok{ background: var(--green-base); box-shadow: 0 0 6px var(--green-glow); }
+  .conn-dot.err{ background: var(--red-base); }
+
+  /* ---------- LAYOUT ---------- */
+  .layout{
+    display:grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+    flex:1;
+  }
+  @media (min-width: 760px){
+    .layout{
+      grid-template-columns: 280px 1fr;
+      align-items:start;
+    }
+  }
+
+  .panel{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  .panel-head{
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .panel-head.clickable{
+    cursor:pointer;
+    user-select:none;
+  }
+  .panel-head.clickable:hover{
+    color: var(--text-dim);
+  }
+  .panel-chevron{
+    font-size: 10px;
+    transition: transform 0.18s ease;
+    color: var(--text-faint);
+  }
+  .panel.collapsed .panel-chevron{
+    transform: rotate(-90deg);
+  }
+  .panel.collapsed .panel-body{
+    display:none;
+  }
+  .panel-head-title{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .panel-body{ padding: 14px; }
+
+  /* ---------- FORM CONTROLS ---------- */
+  .field{ margin-bottom: 14px; }
+  .field:last-child{ margin-bottom:0; }
+  .field label{
+    display:block;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    letter-spacing: 0.02em;
+  }
+  .field .hint{
+    font-size: 10.5px;
+    color: var(--text-faint);
+    margin-top: 5px;
+    line-height:1.4;
+  }
+
+  select, input[type="text"], input[type="number"]{
+    width:100%;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    outline:none;
+    transition: border-color .15s ease;
+  }
+  select:focus, input:focus{
+    border-color: #4a4a52;
+  }
+  select:disabled, input:disabled{
+    opacity:0.4;
+  }
+
+  .row2{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .color-field{
+    display:flex;
+    gap: 6px;
+  }
+  .color-field input[type="color"]{
+    width: 38px;
+    height: 34px;
+    padding: 2px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .color-field input[type="color"]::-webkit-color-swatch-wrapper{ padding:2px; }
+  .color-field input[type="color"]::-webkit-color-swatch{ border:none; border-radius:2px; }
+  .hex-input{
+    flex:1;
+    min-width: 0;
+    text-transform: uppercase;
+  }
+
+  .checkbox-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:4px;
+  }
+  .checkbox-row input[type="checkbox"]{
+    width:14px; height:14px;
+    accent-color: var(--green-base);
+  }
+  .checkbox-row label{
+    margin:0;
+    font-size:11px;
+    color: var(--text-dim);
+    cursor:pointer;
+  }
+
+  /* ---------- STAGE / TALLY ---------- */
+  .stage{
+    display:flex;
+    flex-direction:column;
+    min-height: 420px;
+  }
+  .tally{
+    flex:1;
+    border-radius: 6px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    overflow:hidden;
+    min-height: 360px;
+    background: var(--red-base);
+    /* color is fully controlled by JS (requestAnimationFrame state machine) —
+       no CSS transition here, so trigger-on is always instant (0s) and
+       fade-out timing comes only from the fade-time setting. */
+  }
+  .tally-inner{
+    text-align:center;
+    user-select:none;
+  }
+  .tally-state{
+    font-family: var(--mono);
+    font-size: clamp(38px, 9vw, 72px);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: rgba(0,0,0,0.55);
+    text-shadow: 0 1px 0 rgba(255,255,255,0.08);
+  }
+  .tally-sub{
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    color: rgba(0,0,0,0.4);
+  }
+
+  .tally-footer{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding: 10px 2px 0;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+  .last-msg{
+    max-width: 70%;
+    overflow:hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .footer-actions{
+    display:flex;
+    gap:8px;
+    flex-shrink:0;
+  }
+  .test-btn{
+    background: var(--panel-2);
+    border:1px solid var(--line);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    padding: 7px 12px;
+    border-radius: 4px;
+    cursor:pointer;
+    transition: all .15s ease;
+  }
+  .test-btn:hover{
+    border-color:#4a4a52;
+    color: var(--text);
+  }
+  .test-btn:active{
+    transform: scale(0.97);
+  }
+
+  /* last-cue readout, shown inside the tally itself */
+  .last-cue{
+    margin-top: 14px;
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    color: rgba(0,0,0,0.45);
+    min-height: 1.2em;
+  }
+  .last-cue .lc-label{
+    opacity:0.7;
+    margin-right:6px;
+  }
+
+  /* ---------- FULLSCREEN TALLY MODE ---------- */
+  /* Fully decoupled from the normal grid/flex layout: a fixed-position
+     overlay pinned to the viewport, independent of .app/.layout/.stage
+     box-model so resizing or breakpoint changes can't leave it
+     under-sized or fighting nested 100vh/flex calculations. */
+  body.fullscreen-tally{
+    overflow:hidden;
+  }
+  body.fullscreen-tally .app > header,
+  body.fullscreen-tally .app > .layout > .panel#configPanel,
+  body.fullscreen-tally .app > .layout > .stage > .panel.log,
+  body.fullscreen-tally .app > footer.foot{
+    display:none !important;
+  }
+  body.fullscreen-tally .app{
+    display:block;
+  }
+  body.fullscreen-tally #statusPanel{
+    position:fixed;
+    inset:0;
+    width:100vw;
+    height:100vh;
+    margin:0;
+    border:none;
+    border-radius:0;
+    z-index:1000;
+    display:flex;
+    flex-direction:column;
+  }
+  body.fullscreen-tally .panel-head{
+    display:none;
+  }
+  body.fullscreen-tally #statusPanel > .panel-body{
+    padding:0;
+    flex:1 1 auto;
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+  }
+  body.fullscreen-tally .tally{
+    flex:1 1 auto;
+    min-height:0;
+    border-radius:0;
+  }
+  body.fullscreen-tally .tally-state{
+    font-size: clamp(60px, 14vw, 160px);
+  }
+  body.fullscreen-tally .tally-sub{
+    font-size: clamp(14px, 2.2vw, 20px);
+  }
+  body.fullscreen-tally .last-cue{
+    font-size: clamp(14px, 2vw, 22px);
+  }
+  body.fullscreen-tally .tally-footer{
+    flex:0 0 auto;
+    padding: 14px 20px;
+    background: rgba(0,0,0,0.15);
+  }
+  body.fullscreen-tally .last-msg{
+    color: rgba(0,0,0,0.5);
+  }
+
+  /* ---------- LOG ---------- */
+  .log{
+    margin-top: 18px;
+  }
+  .log-list{
+    max-height: 160px;
+    overflow-y:auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.7;
+  }
+  .log-list::-webkit-scrollbar{ width:6px; }
+  .log-list::-webkit-scrollbar-thumb{ background: var(--line); border-radius:3px; }
+
+  .log-row{
+    display:flex;
+    gap:10px;
+    padding: 2px 0;
+    border-bottom: 1px dashed rgba(255,255,255,0.04);
+  }
+  .log-row:last-child{ border-bottom:none; }
+  .log-time{ color: var(--text-faint); flex-shrink:0; }
+  .log-match{ color: var(--green-base); flex-shrink:0; }
+  .log-ignore{ color: var(--text-faint); flex-shrink:0; }
+  .log-data{ color: var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .empty-log{
+    color: var(--text-faint);
+    font-size: 11px;
+    font-style: italic;
+    padding: 8px 2px;
+  }
+
+  .error-box{
+    background: rgba(200,30,30,0.08);
+    border: 1px solid rgba(200,30,30,0.3);
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-size: 11.5px;
+    color: #ff8a8a;
+    line-height:1.5;
+    margin-top: 10px;
+  }
+
+  footer.foot{
+    text-align:center;
+    padding-top: 18px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    letter-spacing: 0.05em;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <div class="brand">
+      <span class="mark">MSC</span>
+      <h1>Tally Light</h1>
+    </div>
+    <div class="conn-state">
+      <span class="conn-dot" id="connDot"></span>
+      <span id="connText">geen MIDI-toegang</span>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <!-- LEFT: CONFIG -->
+    <div class="panel" id="configPanel">
+      <div class="panel-head clickable" id="configToggle">
+        <span class="panel-head-title">Configuratie</span>
+        <span class="panel-chevron">▾</span>
+      </div>
+      <div class="panel-body">
+
+        <div class="field">
+          <label for="midiInput">MIDI-ingang</label>
+          <select id="midiInput" disabled>
+            <option>geen devices gevonden</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="msgFormat">Trigger-type</label>
+          <select id="msgFormat">
+            <option value="msc">MIDI Show Control</option>
+            <option value="any">Elk MIDI-bericht</option>
+            <option value="note">Note On</option>
+            <option value="cc">Control Change</option>
+          </select>
+        </div>
+
+        <!-- MSC fields -->
+        <div id="mscFields">
+          <div class="field">
+            <label for="mscCommand">Command</label>
+            <select id="mscCommand">
+              <option value="any">Alle commands</option>
+              <option value="01" selected>Go (01)</option>
+              <option value="02">Stop (02)</option>
+              <option value="03">Resume (03)</option>
+              <option value="04">Timed_Go (04)</option>
+              <option value="05">Load (05)</option>
+              <option value="06">Set (06)</option>
+              <option value="07">Fire (07)</option>
+              <option value="0A">Go_Off (0A)</option>
+              <option value="11">Go/Jam_Clock (11)</option>
+            </select>
+          </div>
+
+          <div class="row2">
+            <div class="field">
+              <label for="mscDeviceId">Device ID</label>
+              <input type="text" id="mscDeviceId" value="1" placeholder="0–127 of *">
+            </div>
+            <div class="field">
+              <label for="mscCmdFormat">Cmd Format</label>
+              <select id="mscCmdFormat">
+                <option value="any">Alle</option>
+                <option value="01" selected>Lighting (Generic) — 01</option>
+                <option value="10">Sound (Generic) — 10</option>
+                <option value="20">Machinery (Generic) — 20</option>
+                <option value="7F">All-types — 7F</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="checkbox-row" style="margin-top:2px;">
+            <input type="checkbox" id="mscAllQ">
+            <label for="mscAllQ">Alle Q-nummers accepteren (negeer Q Number / Q List)</label>
+          </div>
+
+          <div class="row2" id="mscQRow">
+            <div class="field">
+              <label for="mscQNumber">Q Number</label>
+              <input type="text" id="mscQNumber" value="0" placeholder="leeg = alles">
+            </div>
+            <div class="field">
+              <label for="mscQList">Q List</label>
+              <input type="text" id="mscQList" value="89" placeholder="leeg = alles">
+            </div>
+          </div>
+
+          <div class="field hint">
+            Laat Q Number / Q List leeg om op alle q's van dat command te matchen. Device ID = <span style="color:var(--text-dim)">*</span> matcht elk device (ook All-call 7F).
+          </div>
+        </div>
+
+        <!-- Note fields -->
+        <div id="noteFields" style="display:none;">
+          <div class="row2">
+            <div class="field">
+              <label for="noteChannel">Kanaal</label>
+              <input type="text" id="noteChannel" value="*" placeholder="1–16 of *">
+            </div>
+            <div class="field">
+              <label for="noteNumber">Note nr.</label>
+              <input type="text" id="noteNumber" value="*" placeholder="0–127 of *">
+            </div>
+          </div>
+        </div>
+
+        <!-- CC fields -->
+        <div id="ccFields" style="display:none;">
+          <div class="row2">
+            <div class="field">
+              <label for="ccChannel">Kanaal</label>
+              <input type="text" id="ccChannel" value="*" placeholder="1–16 of *">
+            </div>
+            <div class="field">
+              <label for="ccNumber">CC nr.</label>
+              <input type="text" id="ccNumber" value="*" placeholder="0–127 of *">
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:18px; padding-top:14px; border-top:1px solid var(--line);">
+          <div class="row2">
+            <div class="field">
+              <label for="colorIdle">Rustkleur</label>
+              <div class="color-field">
+                <input type="color" id="colorIdle" value="#c81e1e">
+                <input type="text" id="colorIdleHex" value="#C81E1E" class="hex-input">
+              </div>
+            </div>
+            <div class="field">
+              <label for="colorTrigger">Triggerkleur</label>
+              <div class="color-field">
+                <input type="color" id="colorTrigger" value="#16c45a">
+                <input type="text" id="colorTriggerHex" value="#16C45A" class="hex-input">
+              </div>
+            </div>
+          </div>
+
+          <div class="row2">
+            <div class="field">
+              <label for="holdTime">Hold-tijd (sec)</label>
+              <input type="number" id="holdTime" value="0.1" min="0" max="5" step="0.05">
+            </div>
+            <div class="field">
+              <label for="fadeTime">Fade-tijd (sec)</label>
+              <input type="number" id="fadeTime" value="0.5" min="0.05" max="10" step="0.05">
+            </div>
+          </div>
+          <div class="field hint" style="margin-top:-6px;">
+            Bij trigger: meteen vol op triggerkleur, blijft staan voor de hold-tijd, fade daarna terug naar rustkleur.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- RIGHT: STAGE -->
+    <div class="stage">
+      <div class="panel" id="statusPanel" style="display:flex; flex-direction:column; flex:1;">
+        <div class="panel-head">
+          <span class="panel-head-title">Status</span>
+          <button class="test-btn" id="fullscreenBtn" title="Status schermvullend">⤢ schermvullend</button>
+        </div>
+        <div class="panel-body" style="display:flex; flex-direction:column; flex:1;">
+          <div class="tally" id="tally">
+            <div class="tally-inner">
+              <div class="tally-state" id="tallyState">STANDBY</div>
+              <div class="tally-sub" id="tallySub">wacht op trigger</div>
+              <div class="last-cue" id="lastCue"></div>
+            </div>
+          </div>
+          <div class="tally-footer">
+            <span class="last-msg" id="lastMsg">nog geen berichten ontvangen</span>
+            <div class="footer-actions">
+              <button class="test-btn" id="testBtn">▸ test trigger</button>
+              <button class="test-btn" id="exitFullscreenBtn" style="display:none;">✕ sluit schermvullend</button>
+            </div>
+          </div>
+          <div id="errorBox"></div>
+        </div>
+      </div>
+
+      <div class="panel log" id="logPanel">
+        <div class="panel-head clickable" id="logToggle">
+          <span class="panel-head-title">MIDI-log</span>
+          <span class="panel-chevron">▾</span>
+        </div>
+        <div class="panel-body">
+          <div class="log-list" id="logList">
+            <div class="empty-log">— nog niets ontvangen —</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="foot">WEB MIDI · vereist HTTPS of localhost · houd dit tabblad open</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- STATE ----------
+  let midiAccess = null;
+  let selectedInput = null;
+  let fadeDuration = 0.5;
+  let animFrame = null;
+  let logCount = 0;
+
+  const els = {
+    midiInput: document.getElementById('midiInput'),
+    connDot: document.getElementById('connDot'),
+    connText: document.getElementById('connText'),
+    msgFormat: document.getElementById('msgFormat'),
+    mscFields: document.getElementById('mscFields'),
+    noteFields: document.getElementById('noteFields'),
+    ccFields: document.getElementById('ccFields'),
+    mscCommand: document.getElementById('mscCommand'),
+    mscDeviceId: document.getElementById('mscDeviceId'),
+    mscCmdFormat: document.getElementById('mscCmdFormat'),
+    mscAllQ: document.getElementById('mscAllQ'),
+    mscQRow: document.getElementById('mscQRow'),
+    mscQNumber: document.getElementById('mscQNumber'),
+    mscQList: document.getElementById('mscQList'),
+    noteChannel: document.getElementById('noteChannel'),
+    noteNumber: document.getElementById('noteNumber'),
+    ccChannel: document.getElementById('ccChannel'),
+    ccNumber: document.getElementById('ccNumber'),
+    colorIdle: document.getElementById('colorIdle'),
+    colorIdleHex: document.getElementById('colorIdleHex'),
+    colorTrigger: document.getElementById('colorTrigger'),
+    colorTriggerHex: document.getElementById('colorTriggerHex'),
+    holdTime: document.getElementById('holdTime'),
+    fadeTime: document.getElementById('fadeTime'),
+    tally: document.getElementById('tally'),
+    tallyState: document.getElementById('tallyState'),
+    tallySub: document.getElementById('tallySub'),
+    lastCue: document.getElementById('lastCue'),
+    lastMsg: document.getElementById('lastMsg'),
+    testBtn: document.getElementById('testBtn'),
+    logList: document.getElementById('logList'),
+    errorBox: document.getElementById('errorBox'),
+    configPanel: document.getElementById('configPanel'),
+    configToggle: document.getElementById('configToggle'),
+    logPanel: document.getElementById('logPanel'),
+    logToggle: document.getElementById('logToggle'),
+    fullscreenBtn: document.getElementById('fullscreenBtn'),
+    exitFullscreenBtn: document.getElementById('exitFullscreenBtn'),
+  };
+
+  // ---------- COLOR STATE ----------
+  // Two custom colors (idle + trigger), parsed to rgb for interpolation.
+  let idleRGB = hexToRgb(els.colorIdle.value);
+  let triggerRGB = hexToRgb(els.colorTrigger.value);
+
+  // Animation phase machine: 'idle' | 'hold' | 'fading'
+  let phase = 'idle';
+  let phaseStartTime = 0;
+  let holdDuration = 0.1;
+
+  function hexToRgb(hex){
+    const h = hex.replace('#', '');
+    const r = parseInt(h.substring(0, 2), 16);
+    const g = parseInt(h.substring(2, 4), 16);
+    const b = parseInt(h.substring(4, 6), 16);
+    return [r, g, b];
+  }
+
+  function rgbToHex(rgb){
+    return '#' + rgb.map(v => Math.round(v).toString(16).padStart(2, '0')).join('').toUpperCase();
+  }
+
+  function isValidHex(str){
+    return /^#?[0-9a-fA-F]{6}$/.test(str.trim());
+  }
+
+  function lerp(a, b, t){ return a + (b - a) * t; }
+
+  function setTallyColor(t){
+    // t = 0 -> idle color, t = 1 -> trigger color
+    const r = lerp(idleRGB[0], triggerRGB[0], t);
+    const g = lerp(idleRGB[1], triggerRGB[1], t);
+    const b = lerp(idleRGB[2], triggerRGB[2], t);
+    els.tally.style.background = `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+  }
+
+  // ---------- COLOR INPUT WIRING ----------
+  function wireColorPair(pickerEl, hexEl, onChange){
+    pickerEl.addEventListener('input', () => {
+      hexEl.value = pickerEl.value.toUpperCase();
+      onChange(hexToRgb(pickerEl.value));
+    });
+    hexEl.addEventListener('input', () => {
+      if (isValidHex(hexEl.value)){
+        const normalized = hexEl.value.startsWith('#') ? hexEl.value : ('#' + hexEl.value);
+        pickerEl.value = normalized;
+        onChange(hexToRgb(normalized));
+      }
+    });
+  }
+
+  wireColorPair(els.colorIdle, els.colorIdleHex, (rgb) => {
+    idleRGB = rgb;
+    if (phase === 'idle') setTallyColor(0);
+  });
+  wireColorPair(els.colorTrigger, els.colorTriggerHex, (rgb) => {
+    triggerRGB = rgb;
+    if (phase === 'hold') setTallyColor(1);
+  });
+
+  // ---------- TRIGGER / FADE STATE MACHINE ----------
+  function triggerGreen(cueLabel){
+    holdDuration = Math.max(0, parseFloat(els.holdTime.value) || 0);
+    fadeDuration = Math.max(0.05, parseFloat(els.fadeTime.value) || 0.5);
+
+    // Snap immediately to full trigger color, synchronously (not via rAF),
+    // so the browser is guaranteed to paint a pure trigger-color frame
+    // even if another trigger arrives a few ms later.
+    phase = 'hold';
+    phaseStartTime = performance.now();
+    setTallyColor(1);
+    els.tallyState.textContent = 'TRIGGER';
+    els.tallySub.textContent = 'go ontvangen';
+
+    if (cueLabel){
+      const time = new Date().toLocaleTimeString('nl-NL', {hour12:false});
+      els.lastCue.innerHTML = `<span class="lc-label">laatste cue</span>${cueLabel} <span class="lc-label">— ${time}</span>`;
+    }
+
+    if (animFrame) cancelAnimationFrame(animFrame);
+    animFrame = requestAnimationFrame(runStateLoop);
+  }
+
+  function runStateLoop(){
+    const now = performance.now();
+    const elapsed = (now - phaseStartTime) / 1000;
+
+    if (phase === 'hold'){
+      if (elapsed >= holdDuration){
+        phase = 'fading';
+        phaseStartTime = now;
+      } else {
+        animFrame = requestAnimationFrame(runStateLoop);
+        return;
+      }
+    }
+
+    if (phase === 'fading'){
+      const fadeElapsed = (now - phaseStartTime) / 1000;
+      const fadeT = Math.max(0, Math.min(1, fadeElapsed / fadeDuration));
+      const t = 1 - fadeT; // 1 = trigger color, 0 = idle color
+      setTallyColor(t);
+      els.tallySub.textContent = 'fade naar rust (' + Math.round((1 - fadeT) * 100) + '%)';
+
+      if (fadeT >= 1){
+        phase = 'idle';
+        els.tallyState.textContent = 'STANDBY';
+        els.tallySub.textContent = 'wacht op trigger';
+        animFrame = null;
+        return;
+      }
+      animFrame = requestAnimationFrame(runStateLoop);
+    }
+  }
+
+  // init idle color
+  setTallyColor(0);
+
+  // ---------- FIELD VISIBILITY ----------
+  function updateFieldVisibility(){
+    const fmt = els.msgFormat.value;
+    els.mscFields.style.display = fmt === 'msc' ? '' : 'none';
+    els.noteFields.style.display = fmt === 'note' ? '' : 'none';
+    els.ccFields.style.display = fmt === 'cc' ? '' : 'none';
+  }
+  els.msgFormat.addEventListener('change', updateFieldVisibility);
+  updateFieldVisibility();
+
+  function updateQFieldsEnabled(){
+    const allQ = els.mscAllQ.checked;
+    els.mscQNumber.disabled = allQ;
+    els.mscQList.disabled = allQ;
+    els.mscQRow.style.opacity = allQ ? '0.45' : '1';
+  }
+  els.mscAllQ.addEventListener('change', updateQFieldsEnabled);
+  updateQFieldsEnabled();
+
+  // ---------- LOGGING ----------
+  function addLog(text, matched){
+    logCount++;
+    if (logCount === 1){
+      els.logList.innerHTML = '';
+    }
+    const row = document.createElement('div');
+    row.className = 'log-row';
+    const time = new Date().toLocaleTimeString('nl-NL', {hour12:false});
+    row.innerHTML = `
+      <span class="log-time">${time}</span>
+      <span class="${matched ? 'log-match' : 'log-ignore'}">${matched ? '●' : '○'}</span>
+      <span class="log-data">${text}</span>
+    `;
+    els.logList.insertBefore(row, els.logList.firstChild);
+    while (els.logList.children.length > 60){
+      els.logList.removeChild(els.logList.lastChild);
+    }
+    els.lastMsg.textContent = text;
+  }
+
+  // ---------- MSC PARSING ----------
+  // MSC SysEx: F0 7F <device_id> 02 <cmd_format> <command> [<data...>] F7
+  const MSC_COMMAND_NAMES = {
+    0x01: 'Go', 0x02: 'Stop', 0x03: 'Resume', 0x04: 'Timed_Go',
+    0x05: 'Load', 0x06: 'Set', 0x07: 'Fire', 0x08: 'All_Off',
+    0x09: 'Restore', 0x0A: 'Go_Off', 0x0B: 'Go/Jam_Clock',
+  };
+
+  function bytesToAsciiUntilNull(bytes, startIdx){
+    let s = '';
+    let i = startIdx;
+    while (i < bytes.length && bytes[i] !== 0x00 && bytes[i] !== 0xF7){
+      s += String.fromCharCode(bytes[i]);
+      i++;
+    }
+    return { str: s, nextIdx: i };
+  }
+
+  function parseMSC(bytes){
+    // bytes includes F0 ... F7
+    if (bytes.length < 6) return null;
+    if (bytes[0] !== 0xF0 || bytes[1] !== 0x7F) return null;
+    if (bytes[3] !== 0x02) return null; // MSC sub-id2
+
+    const deviceId = bytes[2];
+    const cmdFormat = bytes[4];
+    const command = bytes[5];
+
+    let qNumber = '';
+    let qList = '';
+    let idx = 6;
+
+    // Commands that carry Q_number [Q_list] [Q_path] data: Go, Stop, Resume, Timed_Go, Load, Set, Fire, Go_Off, etc.
+    if (idx < bytes.length && bytes[idx] !== 0xF7){
+      const r1 = bytesToAsciiUntilNull(bytes, idx);
+      qNumber = r1.str;
+      idx = r1.nextIdx;
+      if (idx < bytes.length && bytes[idx] === 0x00){
+        idx++;
+        const r2 = bytesToAsciiUntilNull(bytes, idx);
+        qList = r2.str;
+        idx = r2.nextIdx;
+      }
+    }
+
+    return {
+      deviceId,
+      cmdFormat,
+      command,
+      commandName: MSC_COMMAND_NAMES[command] || ('0x' + command.toString(16)),
+      qNumber,
+      qList,
+    };
+  }
+
+  function fieldMatches(configVal, actualVal){
+    // configVal as string, '*' or '' means wildcard
+    const cfg = (configVal || '').trim();
+    if (cfg === '' || cfg === '*') return true;
+    return cfg === actualVal;
+  }
+
+  function evaluateMSCMatch(parsed){
+    if (!parsed) return false;
+
+    const cfgDevice = els.mscDeviceId.value.trim();
+    const deviceOk = (cfgDevice === '' || cfgDevice === '*')
+      ? true
+      : (parseInt(cfgDevice, 10) === parsed.deviceId || (parsed.deviceId === 0x7F)); // 7F = all-call, always matches
+
+    const cfgCmdFormat = els.mscCmdFormat.value;
+    const cmdFormatOk = cfgCmdFormat === 'any'
+      ? true
+      : (parseInt(cfgCmdFormat, 16) === parsed.cmdFormat);
+
+    const cfgCommand = els.mscCommand.value;
+    const commandOk = cfgCommand === 'any'
+      ? true
+      : (parseInt(cfgCommand, 16) === parsed.command);
+
+    const qNumOk = els.mscAllQ.checked ? true : fieldMatches(els.mscQNumber.value, parsed.qNumber);
+    const qListOk = els.mscAllQ.checked ? true : fieldMatches(els.mscQList.value, parsed.qList);
+
+    return deviceOk && cmdFormatOk && commandOk && qNumOk && qListOk;
+  }
+
+  // ---------- MIDI MESSAGE HANDLING ----------
+  function handleMIDIMessage(event){
+    const data = event.data;
+    const fmt = els.msgFormat.value;
+
+    if (data[0] === 0xF0){
+      // SysEx
+      const parsed = parseMSC(data);
+      if (fmt === 'msc' && parsed){
+        const matched = evaluateMSCMatch(parsed);
+        const label = `MSC dev=${parsed.deviceId} cmd=${parsed.commandName} q=${parsed.qNumber || '-'} list=${parsed.qList || '-'}`;
+        addLog(label, matched);
+        if (matched) triggerGreen(`${parsed.commandName} · Q ${parsed.qNumber || '—'}${parsed.qList ? ' / List ' + parsed.qList : ''}`);
+      } else if (fmt === 'any'){
+        addLog('SysEx (' + data.length + ' bytes)', true);
+        triggerGreen('SysEx');
+      } else {
+        addLog('SysEx genegeerd (' + data.length + ' bytes)', false);
+      }
+      return;
+    }
+
+    const status = data[0];
+    const type = status & 0xF0;
+    const channel = (status & 0x0F) + 1;
+
+    if (fmt === 'any'){
+      addLog(`MIDI status=0x${status.toString(16)} d1=${data[1] ?? ''} d2=${data[2] ?? ''}`, true);
+      triggerGreen(`0x${status.toString(16)} ${data[1] ?? ''}/${data[2] ?? ''}`);
+      return;
+    }
+
+    if (fmt === 'note' && type === 0x90 && data[2] > 0){
+      const noteOk = fieldMatches(els.noteNumber.value, String(data[1]));
+      const chOk = fieldMatches(els.noteChannel.value, String(channel));
+      const matched = noteOk && chOk;
+      addLog(`Note On ch=${channel} note=${data[1]} vel=${data[2]}`, matched);
+      if (matched) triggerGreen(`Note ${data[1]} · ch ${channel}`);
+      return;
+    }
+
+    if (fmt === 'cc' && type === 0xB0){
+      const ccOk = fieldMatches(els.ccNumber.value, String(data[1]));
+      const chOk = fieldMatches(els.ccChannel.value, String(channel));
+      const matched = ccOk && chOk;
+      addLog(`CC ch=${channel} cc=${data[1]} val=${data[2]}`, matched);
+      if (matched) triggerGreen(`CC ${data[1]} = ${data[2]} · ch ${channel}`);
+      return;
+    }
+
+    // not matching current format selection, but still log occasionally as ignored
+    if (fmt !== 'msc'){
+      addLog(`status=0x${status.toString(16)} d1=${data[1] ?? ''} d2=${data[2] ?? ''}`, false);
+    }
+  }
+
+  // ---------- MIDI ACCESS ----------
+  function populateInputs(){
+    els.midiInput.innerHTML = '';
+    const inputs = Array.from(midiAccess.inputs.values());
+
+    if (inputs.length === 0){
+      els.midiInput.innerHTML = '<option>geen devices gevonden</option>';
+      els.midiInput.disabled = true;
+      return;
+    }
+
+    els.midiInput.disabled = false;
+    inputs.forEach((input, i) => {
+      const opt = document.createElement('option');
+      opt.value = input.id;
+      opt.textContent = input.name || ('Input ' + i);
+      els.midiInput.appendChild(opt);
+    });
+
+    attachToInput(els.midiInput.value);
+  }
+
+  function attachToInput(id){
+    if (selectedInput){
+      selectedInput.onmidimessage = null;
+    }
+    const inputs = Array.from(midiAccess.inputs.values());
+    selectedInput = inputs.find(i => i.id === id) || inputs[0] || null;
+    if (selectedInput){
+      selectedInput.onmidimessage = handleMIDIMessage;
+    }
+  }
+
+  els.midiInput.addEventListener('change', () => attachToInput(els.midiInput.value));
+
+  function setConnState(ok, text){
+    els.connDot.className = 'conn-dot ' + (ok ? 'ok' : 'err');
+    els.connText.textContent = text;
+  }
+
+  function initMIDI(){
+    if (!navigator.requestMIDIAccess){
+      setConnState(false, 'Web MIDI niet ondersteund in deze browser');
+      showError('Deze browser ondersteunt de Web MIDI API niet. Gebruik Chrome, Edge of Opera (desktop).');
+      return;
+    }
+
+    navigator.requestMIDIAccess({ sysex: true })
+      .then(access => {
+        midiAccess = access;
+        setConnState(true, (Array.from(access.inputs.values()).length) + ' device(s) gevonden');
+        populateInputs();
+        access.onstatechange = () => {
+          setConnState(true, (Array.from(access.inputs.values()).length) + ' device(s) gevonden');
+          populateInputs();
+        };
+      })
+      .catch(err => {
+        setConnState(false, 'MIDI-toegang geweigerd');
+        showError('Kon geen MIDI-toegang krijgen: ' + err.message + '. Dit werkt alleen via HTTPS of localhost, met een browser die Web MIDI ondersteunt (Chrome/Edge aanbevolen), en na het toestaan van de MIDI-permissie.');
+      });
+  }
+
+  function showError(msg){
+    els.errorBox.innerHTML = `<div class="error-box">${msg}</div>`;
+  }
+
+  // ---------- PANEL COLLAPSE / EXPAND ----------
+  function setupPanelToggle(toggleEl, panelEl){
+    toggleEl.addEventListener('click', () => {
+      panelEl.classList.toggle('collapsed');
+    });
+  }
+  setupPanelToggle(els.configToggle, els.configPanel);
+  setupPanelToggle(els.logToggle, els.logPanel);
+
+  // ---------- FULLSCREEN TALLY MODE ----------
+  function enterFullscreenTally(){
+    document.body.classList.add('fullscreen-tally');
+    els.fullscreenBtn.style.display = 'none';
+    els.exitFullscreenBtn.style.display = '';
+  }
+  function exitFullscreenTally(){
+    document.body.classList.remove('fullscreen-tally');
+    els.fullscreenBtn.style.display = '';
+    els.exitFullscreenBtn.style.display = 'none';
+  }
+  els.fullscreenBtn.addEventListener('click', enterFullscreenTally);
+  els.exitFullscreenBtn.addEventListener('click', exitFullscreenTally);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.body.classList.contains('fullscreen-tally')){
+      exitFullscreenTally();
+    }
+  });
+
+  // ---------- TEST BUTTON ----------
+  els.testBtn.addEventListener('click', () => {
+    addLog('handmatige test-trigger', true);
+    triggerGreen('Handmatige test');
+  });
+
+  // ---------- GO ----------
+  initMIDI();
+
+})();
+</script>
+
+</body>
+</html>
